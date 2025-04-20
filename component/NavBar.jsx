@@ -1,12 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 import wasetLogo from '../assets/waset.png';
+import { useDispatch } from 'react-redux';
+import { setCurrentUser } from '../Redux/CurrentUser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const NavBar = () => {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const [modalVisible, setModalVisible] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const getUserFromStorage = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('currentUser');
+        if (userData !== null) {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+          dispatch(setCurrentUser(parsedUser));
+        }
+      } catch (error) {
+        console.error("Error fetching user from AsyncStorage: ", error);
+      }
+    };
+
+    getUserFromStorage();
+  }, [dispatch]);
 
   return (
     <View style={styles.navbar}>
@@ -22,19 +44,14 @@ const NavBar = () => {
             </TouchableOpacity>
 
             <ScrollView>
-              {[
-                { name: 'Home', label: 'Home Page' },
-                { name: 'Services', label: 'Services' },
-                { name: 'Tour', label: 'Tourist' },
-                { name: 'Housing', label: 'Housing' },
-                { name: 'AboutUs', label: 'About Us' },
-                { name: 'Community', label: 'Community' },
-                { name: 'Donation', label: 'Donation' },
-              ].map((item, index) => (
-                <TouchableOpacity key={index} onPress={() => { navigation.navigate(item.name); setModalVisible(false); }} style={styles.menuItem}>
-                  <Text style={styles.menuText}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
+              {[{ name: 'Home', label: 'Home Page' }, { name: 'Services', label: 'Services' }, { name: 'Tourise', label: 'Tourise' },
+                { name: 'Housing', label: 'Housing' }, { name: 'AboutUs', label: 'About Us' }, { name: 'Community', label: 'Community' },
+                ]
+                .map((item, index) => (
+                  <TouchableOpacity key={index} onPress={() => { navigation.navigate(item.name); setModalVisible(false); }} style={styles.menuItem}>
+                    <Text style={styles.menuText}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
             </ScrollView>
           </View>
         </View>
@@ -42,11 +59,18 @@ const NavBar = () => {
 
       <View style={styles.userSection}>
         <Ionicons name="notifications-outline" size={28} color="white" style={styles.icon} />
+        <Image
+          source={{
+            uri: user?.image || "https://img.freepik.com/premium-vector/businessman-icon-profile-placeholder_34176-500.jpg",
+          }}
+          style={styles.profileImage}
+        />
         <TouchableOpacity style={styles.profileContainer}>
-          <View style={styles.profileIcon}>
-            <Text style={styles.profileText}>M</Text>
-          </View>
-          <Text style={styles.profileName}>Moursy</Text>
+          {/* {user ? (
+            <Text style={styles.profileName}>{user.username}</Text>
+          ) : (
+            <Text style={styles.profileName}>Loading...</Text>
+          )} */}
         </TouchableOpacity>
       </View>
     </View>
@@ -77,15 +101,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  profileIcon: {
-    backgroundColor: 'white',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 5,
-  },
   profileText: {
     color: '#091E3D',
     fontWeight: 'bold',
@@ -94,7 +109,12 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

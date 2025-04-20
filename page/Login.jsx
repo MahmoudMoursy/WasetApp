@@ -1,56 +1,87 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { auth } from '../story/firebaseconfig';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+import { deleteCurrentUser, setCurrentUser } from '../Redux/CurrentUser';
 import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '../story/authstorre';
 import wasetLogo from '../assets/waset.png';
 import google from '../assets/google.png';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
-function Login() {
-    const nav = useNavigation();
-    const AuthStore = useAuth();
-    const [user, setUser] = useState({ email: "", password: "" });
+const Login = () => {
+    const navigation = useNavigation();
+    const dispatch = useDispatch();
+    const [user, setUser] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState('');
 
-    async function save() {
+    useEffect(() => {
+        AsyncStorage.removeItem('currentUser');
+        dispatch(deleteCurrentUser());
+    }, []);
+
+    const save = async () => {
         setLoading(true);
-        setError("");
+        setError('');
 
         try {
-            await AuthStore.login(user);
-            nav.navigate('Home', { state: { data: "hi from login" } });
+            const userCredential = await signInWithEmailAndPassword(auth, user.email, user.password);
+            const uid = userCredential.user.uid;
+
+            await AsyncStorage.setItem('currentUser', uid);
+            dispatch(setCurrentUser(uid));
+            fetchUsers(uid);
         } catch (err) {
-            setError("Invalid email or password. Please try again.");
+            console.error(err);
+            setError('Invalid email or password. Please try again.');
+            setLoading(false);
         }
+    };
 
-        setLoading(false);
-    }
-
-    function handleInputChange(name, value) {
-        setUser(prev => ({ ...prev, [name]: value }));
-    }
-
-   
-    const auth = getAuth();
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            console.log("User is signed in", user.uid);
-        } else {
-            console.log("User is not signed in");
-        }
-    });
-
-    async function handleGoogleLogin() {
+    const fetchUsers = async (uid) => {
         try {
-            const provider = new GoogleAuthProvider();
-            const auth = getAuth();
-            await signInWithPopup(auth, provider);
-            nav.navigate('Home');
+            const firestore = getFirestore(); 
+            const userCollection = collection(firestore, 'user');  
+            const querySnapshot = await getDocs(userCollection); 
+            let found = false;
+
+            querySnapshot.forEach((doc) => {
+                if (doc.id === uid) {
+                    found = true;
+                    AsyncStorage.setItem('currentUser', JSON.stringify(doc.data()));
+                    dispatch(setCurrentUser(doc.data()));
+                    navigation.navigate('Home');
+                }
+            });
+
+            if (!found) {
+                navigation.navigate('ProfileForm');
+            }
         } catch (error) {
-            setError("Google login failed. Please try again.");
+            console.error('Error fetching users: ', error);
+        } finally {
+            setLoading(false);
         }
-    }
+    };
+
+    const handleGoogleLogin = async (idToken) => {
+        setLoading(true);
+        try {
+            const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+            const userCredential = await auth().signInWithCredential(googleCredential);
+            const uid = userCredential.user.uid;
+
+            await AsyncStorage.setItem('currentUser', uid);
+            dispatch(setCurrentUser(uid));
+            fetchUsers(uid);
+        } catch (err) {
+            console.error(err);
+            setError('Google login failed. Please try again.');
+            setLoading(false);
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -58,10 +89,10 @@ function Login() {
                 <Image source={wasetLogo} style={styles.logo} />
             </View>
 
-            <View style={styles.form}>             
+            <View style={styles.form}>
                 <Text style={styles.title}>Welcome back! Please enter your details.</Text>
                 <View style={styles.buttonNav}>
-                    <TouchableOpacity onPress={() => nav.navigate('SignUp')} style={styles.navButton}>
+                    <TouchableOpacity onPress={() => navigation.navigate('SignUp')} style={styles.navButton}>
                         <Text style={styles.navButtonText}>Sign Up</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.navButtonActive}>
@@ -73,20 +104,20 @@ function Login() {
                     style={styles.input}
                     placeholder="Enter your email"
                     value={user.email}
-                    onChangeText={(text) => handleInputChange('email', text)}
+                    onChangeText={(text) => setUser({ ...user, email: text })}
                     keyboardType="email-address"
                 />
                 <TextInput
                     style={styles.input}
                     placeholder="Enter your password"
                     value={user.password}
-                    onChangeText={(text) => handleInputChange('password', text)}
+                    onChangeText={(text) => setUser({ ...user, password: text })}
                     secureTextEntry
                 />
 
                 {error && <Text style={styles.errorText}>{error}</Text>}
 
-                <TouchableOpacity onPress={handleGoogleLogin} style={styles.googleButton}>
+                <TouchableOpacity onPress={() => promptAsync()} style={styles.googleButton}>
                     <Image source={google} style={styles.googleIcon} />
                     <Text style={styles.googleButtonText}>Continue with Google</Text>
                 </TouchableOpacity>
@@ -97,14 +128,14 @@ function Login() {
 
                 <Text style={styles.signUpText}>
                     Don’t have an account?{' '}
-                    <Text onPress={() => nav.navigate('SignUp')} style={styles.signUpLink}>
+                    <Text onPress={() => navigation.navigate('SignUp')} style={styles.signUpLink}>
                         Sign Up
                     </Text>
                 </Text>
             </View>
         </View>
     );
-}
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -128,7 +159,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textAlign: 'center',
         marginBottom: 20,
-      },
+    },
     form: {
         width: '90%',
         backgroundColor: 'white',

@@ -26,7 +26,7 @@ const Home = ({ navigation }) => {
 
 
                     <View style={styles.headerContainer}>
-                        <Text style={styles.mainTitle}>Our Main Services</Text>
+                        <Text style={styles.mainTitle}>خدماتنا الرئيسية</Text>
                     </View>
                     <View width="100%" height={450} style={{ marginBottom: 30 }}>
                     <CardSlider />
@@ -52,13 +52,6 @@ const Home = ({ navigation }) => {
                         </View>
                     </View>
 
-                    <View style={styles.faqContainer}>
-                        <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
-                        <View style={styles.faqItem}>
-                            <Text style={styles.faqQuestion}>How can I contact customer support?</Text>
-                            <Text style={styles.faqAnswer}>You can contact us via email or our hotline available 24/7.</Text>
-                        </View>
-                    </View>
 
                     <View style={styles.testimonialsContainer}>
                         <Text style={styles.testimonialsTitle}>أراء المستخدمين</Text>
@@ -117,164 +110,171 @@ const Home = ({ navigation }) => {
 export default Home;
 
 const styles = StyleSheet.create({
-
     headerContainer: {
         paddingBottom: 32,
         alignItems: 'center',
         marginTop: 30,
     },
     mainTitle: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#2c3e50',
+        textShadowColor: '#bdc3c7',
+        textShadowOffset: { width: 2, height: 2 },
+        textShadowRadius: 5,
     },
     cardContainer: {
         backgroundColor: '#fff',
-        padding: 16,
-        borderRadius: 8,
+        padding: 20,
+        borderRadius: 12,
         marginBottom: 24,
+        elevation: 5,    
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
     },
     serviceTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         textAlign: 'center',
+        color: '#34495e', 
+        marginBottom: 8,
     },
     serviceDescription: {
         fontSize: 16,
         color: '#555',
-        marginVertical: 8,
+        lineHeight: 24,
         textAlign: 'center',
+        marginBottom: 16,
+        paddingHorizontal: 20,
     },
     button: {
         backgroundColor: '#2575fc',
         padding: 12,
-        borderRadius: 8,
+        borderRadius: 25, 
         marginTop: 16,
+        elevation: 3,
     },
     buttonText: {
         color: '#fff',
         textAlign: 'center',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     partnersContainer: {
         marginBottom: 24,
     },
     partnersTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         textAlign: 'center',
         marginBottom: 16,
+        color: '#34495e',
     },
     partnersImages: {
         flexDirection: 'column',
-        justifyContent: 'center',
+        justifyContent: 'space-evenly',
         alignItems: 'center',
     },
     partnerLogo: {
-        width: 200,
+        width: 180,
         height: 120,
         marginVertical: 5,
+        borderRadius: 12, 
     },
-    faqContainer: {
-        marginBottom: 24,
-    },
-    faqTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 16,
-        color: "black"
-    },
-    faqItem: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-    },
-    faqQuestion: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    faqAnswer: {
-        fontSize: 16,
-        color: '#555',
-    },
+    
     testimonialsContainer: {
         marginBottom: 24,
     },
     testimonialsTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         textAlign: 'center',
         marginBottom: 16,
+        color: '#2c3e50',
     },
     testimonialCard: {
         flexDirection: 'row',
         marginBottom: 16,
-        padding: 8,
+        padding: 15,
         backgroundColor: '#f8f9fa',
-        borderRadius: 8,
+        borderRadius: 12,
+        elevation: 3, 
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
     },
     testimonialText: {
         flex: 1,
     },
     testimonialTitle: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: 'bold',
+        color: '#2c3e50',
     },
     testimonialSubtitle: {
         fontSize: 14,
         color: '#888',
     },
     testimonialStars: {
-        fontSize: 18,
+        fontSize: 20,
         color: '#ffd700',
     },
     userImage: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        marginLeft: 8,
+        marginLeft: 12,
     },
     mapContainer: {
         marginBottom: 24,
     },
     mapTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         textAlign: 'center',
         marginBottom: 16,
+        color: '#2c3e50',
     },
     map: {
         width: '100%',
-        height: 200,
-        borderRadius: 10,
+        height: 250,
+        borderRadius: 12,
+        marginBottom: 16,
     },
     contactContainer: {
         marginBottom: 70,
     },
     contactTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         textAlign: 'center',
         marginBottom: 16,
+        color: '#2c3e50',
     },
     formContainer: {
         backgroundColor: '#fff',
-        padding: 16,
-        borderRadius: 8,
+        padding: 20,
+        borderRadius: 12,
+        elevation: 3, 
     },
     input: {
         backgroundColor: '#f8f9fa',
-        padding: 12,
-        marginVertical: 8,
-        borderRadius: 8,
+        padding: 14,
+        marginVertical: 10,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: '#ddd',
+        fontSize: 16,
+        color: '#555',
     },
     submitButton: {
         backgroundColor: '#2575fc',
-        padding: 12,
-        borderRadius: 8,
-        marginTop: 16,
+        padding: 14,
+        borderRadius: 25,
+        marginTop: 20,
+        elevation: 3, 
     },
 });

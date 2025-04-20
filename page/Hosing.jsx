@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, ScrollView, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { addDoc, collection, getDocs } from "firebase/firestore";
-import { Picker } from '@react-native-picker/picker';
 import db from "../story/firebaseconfig";
 import Icon from 'react-native-vector-icons/FontAwesome';
 import BottomNav from '../component/bottomNav';
@@ -33,7 +32,6 @@ const Housing = ({ navigation }) => {
             try {
                 const querySnapshot = await getDocs(collection(db, "housing"));
                 const houses = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-                console.log("المساكن المسترجعة:", houses);
                 setHousingList(houses);
             } catch (error) {
                 console.error("خطأ أثناء جلب البيانات:", error.message);
@@ -148,7 +146,7 @@ const styles = StyleSheet.create({
     container: {
         padding: 10,
         backgroundColor: "#f5f5f5",
-        marginBottom: 60,
+        marginBottom: 100,
 
     },
     header: {
