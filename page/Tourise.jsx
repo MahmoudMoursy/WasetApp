@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text, Image, TextInput, Modal, Button, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, Image, TextInput, Modal, Button, StyleSheet, FlatList, TouchableOpacity, Dimensions } from 'react-native';
 import { Switch } from "react-native";
-import { IconButton } from "react-native-paper";
-import { MaterialIcons } from "@expo/vector-icons";
+import { IconButton, Chip, Searchbar } from "react-native-paper";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import BottomNav from '../component/bottomNav';
 import NavBar from '../component/NavBar';
+
+const { width } = Dimensions.get('window');
 
 const App = ({ navigation }) => {
     DetailsModal = ({ selectedPlace, handleCloseDetails })
@@ -234,61 +236,97 @@ const App = ({ navigation }) => {
     );
 
     return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
             <NavBar navigation={navigation} />
             <ScrollView style={styles.container}>
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="ابحث عن مكان"
-                    value={searchQuery}
+                <Searchbar
+                    placeholder="ابحث عن مكان سياحي..."
                     onChangeText={handleSearchChange}
+                    value={searchQuery}
+                    style={styles.searchBar}
+                    inputStyle={styles.searchInput}
                 />
 
-
-                <View style={styles.filters}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.categoriesContainer}
+                >
                     {categories.map((category) => (
-                        <View key={category} style={styles.filterItem}>
-                            <Switch
-                                value={selectedCategories.includes(category)}
-                                onValueChange={() => handleFilterChange(category)}
+                        <TouchableOpacity
+                            key={category}
+                            style={[
+                                styles.categoryButton,
+                                selectedCategories.includes(category) && styles.selectedCategory
+                            ]}
+                            onPress={() => handleFilterChange(category)}
+                        >
+                            <MaterialIcons
+                                name={getCategoryIcon(category)}
+                                size={24}
+                                color={selectedCategories.includes(category) ? '#fff' : '#0A2784FF'}
                             />
-                            <Text>{category}</Text>
-                        </View>
+                            <Text style={[
+                                styles.categoryText,
+                                selectedCategories.includes(category) && styles.selectedCategoryText
+                            ]}>
+                                {category}
+                            </Text>
+                        </TouchableOpacity>
                     ))}
-                </View>
+                </ScrollView>
 
-                <View style={styles.container}>
+                <View style={styles.placesContainer}>
                     {filteredPlaces.length > 0 ? (
                         <FlatList
                             data={filteredPlaces}
                             keyExtractor={(place) => place.id.toString()}
                             renderItem={({ item: place }) => (
-                                <View style={styles.card}>
+                                <TouchableOpacity
+                                    style={styles.card}
+                                    onPress={() => handleOpenDetails(place)}
+                                >
                                     <Image source={{ uri: place.images[0] }} style={styles.image} />
                                     <View style={styles.cardContent}>
-                                        <Text style={styles.title}>{place.title}</Text>
+                                        <View style={styles.cardHeader}>
+                                            <Text style={styles.title}>{place.title}</Text>
+                                            <Chip
+                                                style={styles.categoryChip}
+                                                textStyle={styles.categoryChipText}
+                                            >
+                                                {place.category}
+                                            </Chip>
+                                        </View>
                                         <Text style={styles.description}>{place.shortDescription}</Text>
 
                                         <View style={styles.infoRow}>
-                                            <Text style={styles.price}>{place.price}</Text>
-                                            <View style={styles.rating}>
-                                                <IconButton icon="star" size={16} style={{ color: "#FFD700" }} />
-                                                <Text style={styles.ratingText}>{place.rating} ({place.reviews} تقييم)</Text>
+                                            <View style={styles.priceContainer}>
+                                                <Text style={styles.price}>{place.price}</Text>
+                                            </View>
+                                            <View style={styles.ratingContainer}>
+                                                <Ionicons name="star" size={16} color="#FFD700" />
+                                                <Text style={styles.ratingText}>{place.rating} ({place.reviews})</Text>
                                             </View>
                                         </View>
 
-                                        <TouchableOpacity style={styles.button} onPress={() => handleOpenDetails(place)}>
+                                        <TouchableOpacity
+                                            style={styles.detailsButton}
+                                            onPress={() => handleOpenDetails(place)}
+                                        >
                                             <Text style={styles.buttonText}>عرض التفاصيل</Text>
+                                            <Ionicons name="arrow-forward" size={20} color="#fff" />
                                         </TouchableOpacity>
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                             )}
                         />
                     ) : (
-                        <Text style={styles.noResults}>لا توجد نتائج مطابقة لبحثك.</Text>
+                        <View style={styles.emptyState}>
+                            <Ionicons name="search-outline" size={60} color="#0A2784FF" />
+                            <Text style={styles.emptyStateText}>لا توجد نتائج مطابقة لبحثك</Text>
+                        </View>
                     )}
                 </View>
-
 
                 {selectedPlace && (
                     <Modal
@@ -299,83 +337,41 @@ const App = ({ navigation }) => {
                     >
                         <View style={styles.modalContainer}>
                             <View style={styles.modalContent}>
-                                <Text style={{
-                                    fontSize: 22,
-                                    fontWeight: "bold",
-                                    color: "#091e3d",
-                                    textAlign: "center",
-                                    marginVertical: 10,
-                                    textTransform: "capitalize",
-                                }}>{selectedPlace.title}</Text>
-
-                                <Text style={{
-                                    color: "#000000FF",
-                                    fontSize: 16,
-                                    fontWeight: "bold",
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 8,
-                                    lineHeight: 20,
-                                    textAlign: "center",
-                                }}>{selectedPlace.fullDescription}</Text>
-                                <View style={styles.infoRow}>
-                                    <Text style={{
-                                        fontSize: 18,
-                                        fontSize: 18,
-                                        fontWeight: "bold",
-                                        color: "#FFF",
-                                        backgroundColor: "#D3792FFF",
-                                        paddingHorizontal: 12,
-                                        paddingVertical: 6,
-                                        borderRadius: 8,
-                                        textAlign: "center",
-                                        marginRight: 20,
-
-                                    }}>{selectedPlace.price}</Text>
-                                    <View style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        backgroundColor: "#F0EDEDFF",
-                                        paddingVertical: 8,
-                                        paddingHorizontal: 12,
-                                        borderRadius: 8,
-                                        alignSelf: "flex-start",
-                                    }}>
-                                        <MaterialIcons name="phone" size={20} color="#2E7D32" />
-                                        <Text style={{
-                                            fontSize: 16,
-                                            fontWeight: "bold",
-                                            color: "#2E7D32",
-                                            backgroundColor: "#F0EDEDFF",
-                                            paddingHorizontal: 10,
-                                            paddingVertical: 1,
-                                            borderRadius: 8,
-                                            textAlign: "center",
-                                        }}>{selectedPlace.phone}</Text>
-                                    </View>
-
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>{selectedPlace.title}</Text>
+                                    <TouchableOpacity
+                                        style={styles.closeButton}
+                                        onPress={handleCloseDetails}
+                                    >
+                                        <Ionicons name="close" size={24} color="#666" />
+                                    </TouchableOpacity>
                                 </View>
 
-                                <TouchableOpacity style={{
-                                    marginTop: 12,
-                                    backgroundColor: "#D32F2F",
-                                    paddingVertical: 12,
-                                    paddingHorizontal: 20,
-                                    borderRadius: 8,
-                                    alignItems: "center",
-                                    shadowColor: "#000",
-                                    shadowOffset: { width: 0, height: 4 },
-                                    shadowOpacity: 0.2,
-                                    shadowRadius: 5,
-                                    elevation: 4,
-                                }} onPress={handleCloseDetails}>
-                                    <Text style={{
-                                        color: "#FFF",
-                                        fontWeight: "bold",
-                                        fontSize: 16,
-                                        textTransform: "uppercase"
-                                    }}>إغلاق</Text>
-                                </TouchableOpacity>
+                                <ScrollView style={styles.modalScroll}>
+                                    <Image
+                                        source={{ uri: selectedPlace.images[0] }}
+                                        style={styles.modalImage}
+                                    />
+                                    <Text style={styles.modalDescription}>{selectedPlace.fullDescription}</Text>
 
+                                    <View style={styles.modalInfo}>
+                                        <View style={styles.modalPrice}>
+                                            <Ionicons name="pricetag" size={24} color="#0A2784FF" />
+                                            <Text style={styles.modalPriceText}>{selectedPlace.price}</Text>
+                                        </View>
+                                        <View style={styles.modalContact}>
+                                            <Ionicons name="call" size={24} color="#2E7D32" />
+                                            <Text style={styles.modalContactText}>{selectedPlace.phone}</Text>
+                                        </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={styles.modalButton}
+                                        onPress={handleCloseDetails}
+                                    >
+                                        <Text style={styles.modalButtonText}>إغلاق</Text>
+                                    </TouchableOpacity>
+                                </ScrollView>
                             </View>
                         </View>
                     </Modal>
@@ -386,149 +382,240 @@ const App = ({ navigation }) => {
     );
 };
 
-
+const getCategoryIcon = (category) => {
+    switch (category) {
+        case 'جولات':
+            return 'directions-boat';
+        case 'طبيعة وأنشطة خارجية':
+            return 'landscape';
+        case 'متاحف وفنون وثقافة':
+            return 'museum';
+        default:
+            return 'place';
+    }
+};
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingHorizontal: 10,
-        paddingVertical: 16,
-        backgroundColor: "#f4f4f4",
-        marginBottom: 50
+        backgroundColor: '#f5f5f5',
     },
-    infoRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
+    searchBar: {
+        margin: 15,
+        elevation: 2,
+        backgroundColor: '#fff',
     },
-
-
     searchInput: {
-        height: 45,
-        borderColor: "#aaa",
-        borderWidth: 1.5,
-        marginBottom: 16,
-        paddingHorizontal: 12,
-        borderRadius: 8,
-        backgroundColor: "#fff",
+        textAlign: 'right',
+    },
+    categoriesContainer: {
+        marginBottom: 15,
+        paddingHorizontal: 15,
+    },
+    categoryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        marginHorizontal: 5,
+        borderRadius: 20,
         elevation: 2,
     },
-    filters: {
-        flexDirection: "column",
-        flexWrap: "wrap",
-        marginBottom: 16,
+    selectedCategory: {
+        backgroundColor: '#0A2784FF',
     },
-    filterItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginRight: 16,
-        padding: 8,
-        borderRadius: 5,
-        // backgroundColor: "#eee",
+    categoryText: {
+        marginRight: 5,
+        fontSize: 14,
+        color: '#0A2784FF',
     },
-    modalContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+    selectedCategoryText: {
+        color: '#fff',
     },
-    modalContent: {
-        backgroundColor: "#fff",
-        padding: 24,
-        borderRadius: 10,
-        width: "85%",
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOpacity: 0.2,
-        shadowRadius: 5,
-        elevation: 5,
-    },
-    modalTitle: {
-        fontSize: 22,
-        fontWeight: "bold",
-        marginBottom: 16,
+    placesContainer: {
+        padding: 15,
     },
     card: {
-        flexDirection: "row",
-        backgroundColor: "#fff",
+        flexDirection: 'row',
+        backgroundColor: '#fff',
         borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
-        shadowColor: "#000",
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
-        elevation: 4,
-        width: "100%",
+        marginBottom: 90,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
     image: {
-        width: 110,
-        height: 110,
-        borderRadius: 10,
-        marginRight: 14,
+        width: 120,
+        height: 120,
+        borderTopLeftRadius: 12,
+        borderBottomLeftRadius: 12,
     },
     cardContent: {
         flex: 1,
+        padding: 12,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
     },
     title: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#333",
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        flex: 1,
+    },
+    categoryChip: {
+        backgroundColor: '#f0f0f0',
+    },
+    categoryChipText: {
+        fontSize: 12,
+        color: '#666',
     },
     description: {
         fontSize: 14,
-        color: "#666",
-        marginVertical: 6,
+        color: '#666',
+        marginBottom: 12,
     },
     infoRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginTop: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    priceContainer: {
+        backgroundColor: '#f0f0f0',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
     },
     price: {
         fontSize: 16,
-        fontWeight: "bold",
-        color: "#091e3d",
-        backgroundColor: "#ddd",
-        paddingHorizontal: 6,
-        paddingVertical: 3,
-        borderRadius: 5,
+        fontWeight: 'bold',
+        color: '#0A2784FF',
     },
-    rating: {
-        flexDirection: "row",
-        alignItems: "center",
+    ratingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     ratingText: {
+        marginLeft: 5,
         fontSize: 14,
-        fontWeight: "bold",
-        color: "#333",
+        color: '#666',
     },
-    button: {
-        marginTop: 10,
-        backgroundColor: "#091e3d",
-        paddingVertical: 12,
-        borderRadius: 6,
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+    detailsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0A2784FF',
+        paddingVertical: 10,
+        borderRadius: 8,
     },
     buttonText: {
-        color: "#fff",
-        fontWeight: "bold",
+        color: '#fff',
+        fontWeight: 'bold',
         fontSize: 16,
+        marginRight: 5,
     },
-    noResults: {
-        fontSize: 18,
-        textAlign: "center",
-        marginTop: 20,
-        color: "#777",
+    emptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    emptyStateText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: '#666',
+    },
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        width: '90%',
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    closeButton: {
+        padding: 5,
+    },
+    modalScroll: {
+        padding: 15,
+    },
+    modalImage: {
+        width: '100%',
+        height: 200,
+        borderRadius: 8,
+        marginBottom: 15,
+    },
+    modalDescription: {
+        fontSize: 16,
+        color: '#333',
+        lineHeight: 24,
+        marginBottom: 15,
+    },
+    modalInfo: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 15,
+    },
+    modalPrice: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
+        padding: 10,
+        borderRadius: 8,
+    },
+    modalPriceText: {
+        marginLeft: 5,
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#0A2784FF',
+    },
+    modalContact: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
+        padding: 10,
+        borderRadius: 8,
+    },
+    modalContactText: {
+        marginLeft: 5,
+        fontSize: 16,
+        color: '#2E7D32',
+    },
+    modalButton: {
+        backgroundColor: '#0A2784FF',
+        padding: 15,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    modalButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
 });
-
-
-
 
 export default App;

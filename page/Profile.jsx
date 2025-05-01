@@ -1,22 +1,26 @@
 import React, { useEffect, useState } from "react";
-import { View, Image, Text, TextInput, TouchableOpacity, Button, Modal, Alert, StyleSheet, ScrollView } from "react-native"; import { useDispatch } from "react-redux";
+import { View, Image, Text, TextInput, TouchableOpacity, Button, Modal, Alert, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator } from "react-native";
+import { useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
 import { deleteCurrentUser } from "../Redux/CurrentUser";
-import { collection, query, where, getDocs, deleteDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, updateDoc, doc, orderBy, limit, onSnapshot } from "firebase/firestore";
 import db from "../story/firebaseconfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { axiosApi } from "../axios/axios";
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
+import NavBar from '../component/NavBar';
+import BottomNav from '../component/bottomNav';
 
-const Profile = () => {
+const Profile = ({ navigation }) => {
     const [isActive, setIsActive] = useState(false);
     const [posts, setPosts] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [editingField, setEditingField] = useState(null);
-    const [userData, setUserData] = useState("");
+    const [userData, setUserData] = useState(null);
     const [imageFile, setImageFile] = useState(null);
-    const [imagePreview, setImagePreview] = useState(null)
+    const [imagePreview, setImagePreview] = useState(null);
     const [fieldValues, setFieldValues] = useState({
         email: '',
         phonenumber: '',
@@ -24,6 +28,17 @@ const Profile = () => {
         address: '',
         status: ''
     });
+    const [isEditing, setIsEditing] = useState(false);
+    const [PhotoUrl, setPhotoUrl] = useState(null);
+    const [formData, setFormData] = useState({
+        username: '',
+        email: '',
+        phone: '',
+        address: '',
+        bio: ''
+    });
+    const [notifications, setNotifications] = useState([]);
+    const [loadingNotifications, setLoadingNotifications] = useState(true);
 
     const dispatch = useDispatch();
     const nav = useNavigation();
@@ -42,14 +57,16 @@ const Profile = () => {
                         address: parsedUser.address || '',
                         status: parsedUser.status || ''
                     });
+                    setPhotoUrl(parsedUser.PhotoUrl);
                 }
             } catch (error) {
                 console.error("Error fetching user data:", error);
+            } finally {
+                setLoading(false);
             }
         };
         fetchUserData();
     }, []);
-
 
     useEffect(() => {
         if (userData && userData.status === "publisher") {
@@ -57,10 +74,62 @@ const Profile = () => {
         }
     }, [userData]);
 
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            try {
+                if (!userData?.UserId) {
+                    console.log("User ID is not available for notifications");
+                    return;
+                }
+
+                const q = query(
+                    collection(db, "notifications"),
+                    where("userId", "==", userData.UserId),
+                    limit(5)
+                );
+
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const notificationsList = [];
+                    snapshot.forEach((doc) => {
+                        notificationsList.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    // Sort notifications by timestamp after fetching
+                    notificationsList.sort((a, b) => {
+                        if (!a.timestamp || !b.timestamp) return 0;
+                        return b.timestamp.toDate() - a.timestamp.toDate();
+                    });
+                    setNotifications(notificationsList);
+                    setLoadingNotifications(false);
+                });
+
+                return () => unsubscribe();
+            } catch (error) {
+                console.error("Error fetching notifications:", error);
+                setLoadingNotifications(false);
+            }
+        };
+
+        fetchNotifications();
+    }, [userData?.UserId]);
+
+    useEffect(() => {
+        if (userData?.UserId && userData.status === "publisher") {
+            fetchPosts();
+        }
+    }, [userData?.UserId, userData?.status]);
+
     const fetchPosts = async () => {
         setLoading(true);
         try {
-            const q = query(collection(db, "housing"), where("Id", "==", userData?.UserId));
+            if (!userData?.UserId) {
+                console.log("User ID is not available yet");
+                return;
+            }
+
+            const q = query(collection(db, "housing"), where("Id", "==", userData.UserId));
             const querySnapshot = await getDocs(q);
             const postsData = [];
             querySnapshot.forEach((doc) => {
@@ -69,8 +138,9 @@ const Profile = () => {
             setPosts(postsData);
         } catch (error) {
             console.error("Error fetching posts: ", error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleLogout = async () => {
@@ -122,268 +192,641 @@ const Profile = () => {
 
     const pickImage = async () => {
         try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('خطأ', 'نحتاج إلى إذن للوصول إلى معرض الصور');
+                return;
+            }
+
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                quality: 1,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.5,
             });
 
-            if (!result.canceled) {
-                const imageUri = result.assets[0].uri;
-                setImagePreview(imageUri);
-
-                const fileName = imageUri.split('/').pop();
-                const fileType = fileName.split('.').pop();
-
-                const imageData = new FormData();
-                imageData.append("file", {
-                    uri: imageUri,
-                    name: fileName,
-                    type: `image/${fileType}`,
-                });
-                imageData.append("upload_preset", "waset_app"); 
-                imageData.append("cloud_name", "dppa1o6y7");   
-
-                try {
-                    const response = await axiosApi.post("", imageData, {
-                        headers: {
-                            "Content-Type": "multipart/form-data",
-                        },
-                    });
-
-                    const imageUrl = response.data.secure_url;
-                    console.log("Image uploaded successfully:", imageUrl);
-
-                    
-                    const q = query(collection(db, "user"), where("UserId", "==", userData?.UserId));
-                    const querySnapshot = await getDocs(q);
-
-                    if (!querySnapshot.empty) {
-                        const userDocRef = doc(db, "user", querySnapshot.docs[0].id);
-                        await updateDoc(userDocRef, { image: imageUrl });
-
-                        
-                        const updatedUser = { ...userData, image: imageUrl };
-                        setUserData(updatedUser);
-                        await AsyncStorage.setItem("currentUser", JSON.stringify(updatedUser));
-                    } else {
-                        Alert.alert('Error', 'User document not found');
-                    }
-                } catch (error) {
-                    Alert.alert('Error', 'Failed to upload image');
-                    console.error("Image upload error:", error);
-                }
+            if (!result.canceled && result.assets && result.assets[0]) {
+                setPhotoUrl(result.assets[0].uri);
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to pick image');
-            console.error("Image picker error:", error);
+            console.error("Error picking image:", error);
+            Alert.alert("خطأ", "حدث خطأ أثناء اختيار الصورة");
         }
     };
 
+    const handleUpdateProfile = async () => {
+        if (!userData?.UserId) return;
+
+        try {
+            const q = query(collection(db, "user"), where("UserId", "==", userData.UserId));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                let updatedData = { ...formData };
+
+                // Handle image upload if a new image was selected
+                if (PhotoUrl && PhotoUrl !== userData.PhotoUrl) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', {
+                            uri: PhotoUrl,
+                            type: 'image/jpeg',
+                            name: 'photo.jpg'
+                        });
+                        formData.append('upload_preset', 'Abdalla');
+                        formData.append('cloud_name', 'dfievnowq');
+
+                        const response = await axiosApi.post(
+                            'https://api.cloudinary.com/v1_1/dfievnowq/image/upload',
+                            formData,
+                            {
+                                headers: {
+                                    'Content-Type': 'multipart/form-data',
+                                }
+                            }
+                        );
+
+                        if (response.data && response.data.secure_url) {
+                            updatedData.PhotoUrl = response.data.secure_url;
+                        }
+                    } catch (error) {
+                        console.error("Error uploading image:", error);
+                        Alert.alert("خطأ", "حدث خطأ أثناء رفع الصورة");
+                        return;
+                    }
+                }
+
+                await updateDoc(doc(db, "user", userDoc.id), updatedData);
+
+                const updatedUser = { ...userData, ...updatedData };
+                await AsyncStorage.setItem("currentUser", JSON.stringify(updatedUser));
+                setUserData(updatedUser);
+
+                Alert.alert("نجاح", "تم تحديث الملف الشخصي بنجاح");
+                setIsEditing(false);
+            }
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            Alert.alert("خطأ", "حدث خطأ أثناء تحديث الملف الشخصي");
+        }
+    };
+
+    const formatTimeAgo = (timestamp) => {
+        if (!timestamp) return '';
+        const now = new Date();
+        const notificationDate = timestamp.toDate();
+        const diffInSeconds = Math.floor((now - notificationDate) / 1000);
+
+        if (diffInSeconds < 60) return 'الآن';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} دقيقة`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} ساعة`;
+        return `${Math.floor(diffInSeconds / 86400)} يوم`;
+    };
+
+    const getNotificationIcon = (type) => {
+        switch (type) {
+            case 'payment':
+                return { name: 'cash', color: '#4CAF50' };
+            case 'status':
+                return { name: 'time', color: '#2196F3' };
+            case 'message':
+                return { name: 'chatbubble', color: '#FF9800' };
+            default:
+                return { name: 'notifications', color: '#0A2784FF' };
+        }
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#0A2784FF" />
+            </SafeAreaView>
+        );
+    }
+
     return (
-        <>
-            <ScrollView style={styles.profileContainer}>
-                <View style={styles.profileCard}>
-                    <View style={styles.imageContainer}>
+        <SafeAreaView style={styles.container}>
+            <NavBar />
+            <ScrollView style={styles.scrollView}>
+                <View style={styles.header}>
+                    <View style={styles.profileImageContainer}>
                         <Image
                             source={{
-                                uri: userData?.image || "https://img.freepik.com/premium-vector/businessman-icon-profile-placeholder_34176-500.jpg",
+                                uri: PhotoUrl || userData?.PhotoUrl || "https://img.freepik.com/premium-vector/businessman-icon-profile-placeholder_34176-500.jpg"
                             }}
                             style={styles.profileImage}
+                            onError={(e) => {
+                                console.log('Image loading error:', e.nativeEvent.error);
+                                setPhotoUrl(null);
+                            }}
                         />
-
-                        <TouchableOpacity onPress={pickImage} style={styles.editIcon}>
-                            <Text style={styles.editIconText}>➕</Text>
-                        </TouchableOpacity>
+                        {isEditing && (
+                            <TouchableOpacity
+                                style={styles.editImageButton}
+                                onPress={pickImage}
+                            >
+                                <Text style={styles.editImageText}>+</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
+                    <Text style={styles.username}>{userData?.username || 'مستخدم'}</Text>
+                    <Text style={styles.email}>{userData?.email || ''}</Text>
+                </View>
 
-                    <Text style={styles.userName}>{userData.username || "اسم المستخدم"}</Text>
-                    <Text style={styles.userId}>الجامعة: <Text>{userData.university || "الجامعة غير متاحة"}</Text></Text>
-                    <Text style={styles.infoItem} >{userData.bio || "نبذة عن المستخدم"}                    </Text>
-                    <View style={styles.infoSection}>
-                        <Text style={styles.sectionTitle}>المعلومات الشخصية</Text>
-                        {["email", "phonenumber", "city", "address", "status"].map((fieldKey) => (
-                            <View style={styles.infoItem} key={fieldKey}>
-                                <Text style={styles.infoLabel}>
-                                    {fieldKey === "email" ? "البريد الإلكتروني:" :
-                                        fieldKey === "phonenumber" ? "رقم الهاتف:" :
-                                            fieldKey === "city" ? "المدينة:" :
-                                                fieldKey === "address" ? "العنوان:" :
-                                                    "الحالة:"}
-                                </Text>
-                                {editingField === fieldKey ? (
-                                    <>
-                                        <TextInput
-                                            value={fieldValues[fieldKey]}
-                                            onChangeText={(text) => setFieldValues({ ...fieldValues, [fieldKey]: text })}
-                                            style={styles.input}
-                                        />
-                                        <Button title="حفظ" onPress={() => handleSave(fieldKey)} />
-                                    </>
-                                ) : (
-                                    <>
-                                        <Text>{fieldValues[fieldKey]}</Text>
-                                        <TouchableOpacity onPress={() => setEditingField(fieldKey)}>
-                                            <Text style={styles.editButton}>تعديل</Text>
-                                        </TouchableOpacity>
-                                    </>
-                                )}
-                                <View>
-
-                                </View>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>معلومات الحساب</Text>
+                    <View style={styles.infoContainer}>
+                        <View style={styles.infoItem}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name="person" size={24} color="#0A2784FF" />
                             </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>اسم المستخدم</Text>
+                                {isEditing ? (
+                                    <TextInput
+                                        style={styles.input}
+                                        value={formData.username}
+                                        onChangeText={(text) => setFormData({ ...formData, username: text })}
+                                        placeholder="أدخل اسم المستخدم"
+                                    />
+                                ) : (
+                                    <Text style={styles.infoValue}>{userData?.username || 'غير محدد'}</Text>
+                                )}
+                            </View>
+                        </View>
 
-                        ))}
+                        <View style={styles.infoItem}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name="mail" size={24} color="#0A2784FF" />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>البريد الإلكتروني</Text>
+                                {isEditing ? (
+                                    <TextInput
+                                        style={styles.input}
+                                        value={formData.email}
+                                        onChangeText={(text) => setFormData({ ...formData, email: text })}
+                                        placeholder="أدخل البريد الإلكتروني"
+                                        keyboardType="email-address"
+                                    />
+                                ) : (
+                                    <Text style={styles.infoValue}>{userData?.email || 'غير محدد'}</Text>
+                                )}
+                            </View>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name="call" size={24} color="#0A2784FF" />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>رقم الهاتف</Text>
+                                {isEditing ? (
+                                    <TextInput
+                                        style={styles.input}
+                                        value={formData.phone}
+                                        onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                                        placeholder="أدخل رقم الهاتف"
+                                        keyboardType="phone-pad"
+                                    />
+                                ) : (
+                                    <Text style={styles.infoValue}>{userData?.phone || 'غير محدد'}</Text>
+                                )}
+                            </View>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name="location" size={24} color="#0A2784FF" />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>العنوان</Text>
+                                {isEditing ? (
+                                    <TextInput
+                                        style={styles.input}
+                                        value={formData.address}
+                                        onChangeText={(text) => setFormData({ ...formData, address: text })}
+                                        placeholder="أدخل العنوان"
+                                    />
+                                ) : (
+                                    <Text style={styles.infoValue}>{userData?.address || 'غير محدد'}</Text>
+                                )}
+                            </View>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name="document-text" size={24} color="#0A2784FF" />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>نبذة عني</Text>
+                                {isEditing ? (
+                                    <TextInput
+                                        style={[styles.input, styles.bioInput]}
+                                        value={formData.bio}
+                                        onChangeText={(text) => setFormData({ ...formData, bio: text })}
+                                        placeholder="أدخل نبذة عنك"
+                                        multiline
+                                        numberOfLines={3}
+                                    />
+                                ) : (
+                                    <Text style={styles.infoValue}>{userData?.bio || 'غير محدد'}</Text>
+                                )}
+                            </View>
+                        </View>
                     </View>
+                </View>
 
-                    {userData?.status === "publisher" && (
-                        <View style={styles.infoSection}>
+                <View style={styles.actionsContainer}>
+                    {isEditing ? (
+                        <TouchableOpacity
+                            style={styles.saveButton}
+                            onPress={handleUpdateProfile}
+                        >
+                            <Text style={styles.saveButtonText}>حفظ التغييرات</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            style={styles.editButton}
+                            onPress={() => setIsEditing(true)}
+                        >
+                            <Ionicons name="create" size={24} color="#fff" />
+                            <Text style={styles.editButtonText}>تعديل الملف الشخصي</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {userData?.status === "publisher" && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>الإعلانات المنشورة</Text>
-                            {loading && <Text>جاري التحميل...</Text>}
-                            <View style={styles.tableContainer}>
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => navigation.navigate('Housing')}
+                            >
+                                <Ionicons name="add-circle" size={24} color="#fff" />
+                                <Text style={styles.addButtonText}>إضافة إعلان</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {loading ? (
+                            <ActivityIndicator size="large" color="#0A2784FF" style={styles.loadingIndicator} />
+                        ) : posts.length === 0 ? (
+                            <View style={styles.emptyState}>
+                                <Ionicons name="home" size={48} color="#ccc" />
+                                <Text style={styles.emptyStateText}>لا توجد إعلانات منشورة</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.postsList}>
                                 {posts.map((post, index) => (
-                                    <View key={post.id} style={styles.tableRow}>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>رقم الإعلان:</Text>
-                                            <Text>{index + 1}</Text>
+                                    <View key={post.id} style={styles.postItem}>
+                                        <View style={styles.postHeader}>
+                                            <Text style={styles.postNumber}>الإعلان #{index + 1}</Text>
+                                            <TouchableOpacity
+                                                style={styles.deleteButton}
+                                                onPress={() => deletePost(post.id)}
+                                            >
+                                                <Ionicons name="trash" size={20} color="#FF3B30" />
+                                            </TouchableOpacity>
                                         </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>الوصف:</Text>
-                                            <Text>{post.description}</Text>
+
+                                        <View style={styles.postDetails}>
+                                            <View style={styles.detailRow}>
+                                                <Ionicons name="bed" size={20} color="#0A2784FF" />
+                                                <Text style={styles.detailText}>عدد السراير: {post.numbed}</Text>
+                                            </View>
+                                            <View style={styles.detailRow}>
+                                                <Ionicons name="water" size={20} color="#0A2784FF" />
+                                                <Text style={styles.detailText}>عدد الحمامات: {post.numteu}</Text>
+                                            </View>
+                                            <View style={styles.detailRow}>
+                                                <Ionicons name="call" size={20} color="#0A2784FF" />
+                                                <Text style={styles.detailText}>رقم الهاتف: {post.phone}</Text>
+                                            </View>
+                                            <View style={styles.detailRow}>
+                                                <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                                                <Text style={styles.detailText}>رقم الواتس: {post.whats}</Text>
+                                            </View>
+                                            <View style={styles.detailRow}>
+                                                <Ionicons name="location" size={20} color="#0A2784FF" />
+                                                <Text style={styles.detailText}>العنوان: {post.address}</Text>
+                                            </View>
+                                            <View style={styles.detailRow}>
+                                                <Ionicons name="pricetag" size={20} color="#0A2784FF" />
+                                                <Text style={styles.detailText}>السعر: {post.price} جنيه مصري</Text>
+                                            </View>
                                         </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>عدد السراير:</Text>
-                                            <Text>{post.numbed}</Text>
+
+                                        <View style={styles.postDescription}>
+                                            <Text style={styles.descriptionLabel}>الوصف:</Text>
+                                            <Text style={styles.descriptionText}>{post.description}</Text>
                                         </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>عدد الحمامات:</Text>
-                                            <Text>{post.numteu}</Text>
-                                        </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>رقم الهاتف:</Text>
-                                            <Text>{post.phone}</Text>
-                                        </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>رقم الواتس:</Text>
-                                            <Text>{post.whats}</Text>
-                                        </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}>العنوان:</Text>
-                                            <Text>{post.address}</Text>
-                                        </View>
-                                        <View style={styles.tableItem}>
-                                            <Text style={styles.label}> السعر:</Text>
-                                            <Text>{post.price}</Text>
-                                        </View>
-                                        <TouchableOpacity onPress={() => deletePost(post.id)}>
-                                            <Text style={styles.deleteButton}>حذف</Text>
-                                        </TouchableOpacity>
                                     </View>
                                 ))}
                             </View>
+                        )}
+                    </View>
+                )}
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>المعاملات الأخيرة</Text>
+                        <TouchableOpacity>
+                            <Text style={styles.viewAllText}>عرض الكل</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.transactionsList}>
+                        <View style={styles.transactionItem}>
+                            <View style={styles.transactionIcon}>
+                                <Ionicons name="cash" size={24} color="#4CAF50" />
+                            </View>
+                            <View style={styles.transactionInfo}>
+                                <Text style={styles.transactionTitle}>تحويل مالي</Text>
+                                <Text style={styles.transactionDate}>2024/03/15</Text>
+                            </View>
+                            <Text style={styles.transactionAmount}>1000 جنيه مصري</Text>
+                        </View>
+                        <View style={styles.transactionItem}>
+                            <View style={styles.transactionIcon}>
+                                <Ionicons name="cube" size={24} color="#2196F3" />
+                            </View>
+                            <View style={styles.transactionInfo}>
+                                <Text style={styles.transactionTitle}>شحن طرد</Text>
+                                <Text style={styles.transactionDate}>2024/03/10</Text>
+                            </View>
+                            <Text style={styles.transactionAmount}>5 كجم</Text>
+                        </View>
+                        <View style={styles.transactionItem}>
+                            <View style={styles.transactionIcon}>
+                                <Ionicons name="document-text" size={24} color="#FF9800" />
+                            </View>
+                            <View style={styles.transactionInfo}>
+                                <Text style={styles.transactionTitle}>توثيق مستندات</Text>
+                                <Text style={styles.transactionDate}>2024/03/05</Text>
+                            </View>
+                            <Text style={styles.transactionAmount}>مكتمل</Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>الإشعارات</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+                            <Text style={styles.viewAllText}>عرض الكل</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {loadingNotifications ? (
+                        <ActivityIndicator size="large" color="#0A2784FF" style={styles.loadingIndicator} />
+                    ) : notifications.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Ionicons name="notifications-off" size={48} color="#ccc" />
+                            <Text style={styles.emptyStateText}>لا يوجد إشعارات الآن</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.notificationsList}>
+                            {notifications.map((notification) => {
+                                const icon = getNotificationIcon(notification.type);
+                                return (
+                                    <View key={notification.id} style={styles.notificationItem}>
+                                        <View style={[styles.notificationIcon, { backgroundColor: `${icon.color}20` }]}>
+                                            <Ionicons name={icon.name} size={24} color={icon.color} />
+                                        </View>
+                                        <View style={styles.notificationContent}>
+                                            <Text style={styles.notificationText}>{notification.message}</Text>
+                                            <Text style={styles.notificationTime}>
+                                                {formatTimeAgo(notification.timestamp)}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                );
+                            })}
                         </View>
                     )}
-
-                    <View style={styles.infoSection}>
-                        <Text style={styles.sectionTitle}>المعاملات الأخيرة</Text>
-                        <Text>2024/03/15: تحويل مالي - 1000 جنيه مصري</Text>
-                        <Text>2024/03/10: شحن طرد - 5 كجم</Text>
-                        <Text>2024/03/05: توثيق مستندات</Text>
-                    </View>
-
-                    <View style={styles.infoSection}>
-                        <Text style={styles.sectionTitle}>الإشعارات</Text>
-                        <View style={styles.notification}>
-                            <Text>تم تأكيد الدفع - 1000 جنيه مصري مقابل تأجير شقة</Text>
-                        </View>
-                        <View style={styles.notification}>
-                            <Text>تحديث حالة الخدمة - قيد التنفيذ</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.infoSection}>
-                        <Text style={styles.sectionTitle}>إعدادات الحساب</Text>
-                        <View style={styles.settingItem}>
-                            <Text style={styles.settingLabel}>تفعيل إشعارات الموقع</Text>
-                            <TouchableOpacity onPress={handleToggle} style={[styles.toggle, isActive ? styles.toggleActive : null]} />
-                        </View>
-                    </View>
-
-                    <Button title="تسجيل الخروج" onPress={handleLogout} />
                 </View>
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>إعدادات الحساب</Text>
+                    <View style={styles.settingsList}>
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <Ionicons name="notifications" size={24} color="#0A2784FF" />
+                                <Text style={styles.settingLabel}>تفعيل إشعارات الموقع</Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={handleToggle}
+                                style={[styles.toggle, isActive ? styles.toggleActive : null]}
+                            />
+                        </View>
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <Ionicons name="language" size={24} color="#0A2784FF" />
+                                <Text style={styles.settingLabel}>اللغة</Text>
+                            </View>
+                            <Text style={styles.settingValue}>العربية</Text>
+                        </View>
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <Ionicons name="moon" size={24} color="#0A2784FF" />
+                                <Text style={styles.settingLabel}>الوضع الليلي</Text>
+                            </View>
+                            <TouchableOpacity style={[styles.toggle]}>
+                                <View style={[styles.toggleCircle]} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+
+                <TouchableOpacity
+                    style={styles.logoutButton}
+                    onPress={handleLogout}
+                >
+                    <Ionicons name="log-out" size={24} color="#FF3B30" />
+                    <Text style={styles.logoutText}>تسجيل الخروج</Text>
+                </TouchableOpacity>
             </ScrollView>
-        </>
+            <BottomNav navigation={navigation} activePage="Profile" />
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    profileContainer: {
+    container: {
         flex: 1,
-        backgroundColor: '#e9ecef',
-        direction: "rtl"
+        backgroundColor: '#f5f5f5',
+
     },
-    profileCard: {
-        backgroundColor: '#ffffff',
-        padding: 20,
-        borderRadius: 16,
-        margin: 16,
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+    },
+    scrollView: {
+        flex: 1,
+        paddingBottom: 100,
+    },
+    header: {
+        alignItems: 'center',
+        padding: 25,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        marginBottom: 20,
+    },
+    profileImageContainer: {
+        position: 'relative',
+        marginBottom: 15,
+    },
+    profileImage: {
+        width: 150,
+        height: 150,
+        borderRadius: 75,
+        borderWidth: 3,
+        borderColor: '#0A2784FF',
+    },
+    editImageButton: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        backgroundColor: '#0A2784FF',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-        elevation: 6,
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
     },
-    userName: {
-        fontSize: 28,
+    editImageText: {
+        color: '#fff',
+        fontSize: 24,
         fontWeight: 'bold',
-        color: '#2c3e50',
-        textAlign: 'center',
-        marginBottom: 10,
     },
-    userId: {
+    username: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 5,
+    },
+    email: {
         fontSize: 16,
-        color: '#7f8c8d',
-        textAlign: 'center',
+        color: '#666',
+    },
+    section: {
+        backgroundColor: '#fff',
+        marginTop: 20,
+        padding: 25,
+        borderRadius: 15,
+        marginHorizontal: 15,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#0A2784FF',
         marginBottom: 20,
+    },
+    infoContainer: {
+        gap: 15,
+    },
+    infoItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        marginBottom: 5,
+    },
+    iconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(10, 39, 132, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    infoContent: {
+        flex: 1,
+    },
+    infoLabel: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 5,
+    },
+    infoValue: {
+        fontSize: 16,
+        color: '#333',
+        fontWeight: '500',
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 10,
+        padding: 12,
+        fontSize: 16,
+        color: '#333',
+        backgroundColor: '#f9f9f9',
+    },
+    bioInput: {
+        height: 100,
+        textAlignVertical: 'top',
+    },
+    actionsContainer: {
+        padding: 25,
+        marginBottom: 30,
+        marginTop: 10,
+    },
+    editButton: {
+        flexDirection: 'row',
+        backgroundColor: '#0A2784FF',
+        padding: 18,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+    },
+    editButtonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginLeft: 12,
+    },
+    saveButton: {
+        backgroundColor: '#4CAF50',
+        padding: 18,
+        borderRadius: 12,
+        alignItems: 'center',
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+    },
+    saveButtonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
     },
     infoSection: {
         marginTop: 20,
         borderTopWidth: 1,
         borderTopColor: '#ecf0f1',
         paddingTop: 20,
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#34495e',
-        marginBottom: 15,
-    },
-    infoItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: '#f8f9fa',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 10,
-    },
-    infoLabel: {
-        fontSize: 15,
-        fontWeight: '500',
-        color: '#2c3e50',
-        width: '35%',
-    },
-    input: {
-        flex: 1,
-        borderWidth: 1,
-        borderColor: '#bdc3c7',
-        borderRadius: 8,
-        padding: 10,
-        backgroundColor: '#fff',
-        marginRight: 10,
-    },
-    editButton: {
-        color: '#2980b9',
-        fontWeight: '600',
     },
     tableContainer: {
         marginTop: 10,
@@ -422,82 +865,232 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-    notification: {
-        backgroundColor: '#f1f2f6',
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 8,
-    },
-    imageContainer: {
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginVertical: 20,
-        position: 'relative',
+        marginBottom: 20,
     },
-    
-    profileImage: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        borderWidth: 2,
-        borderColor: '#ccc',
+    viewAllText: {
+        color: '#0A2784FF',
+        fontSize: 14,
+        fontWeight: '500',
     },
-    
-    editIcon: {
-        position: 'absolute',
-        bottom: 10,
-        right: (1 - 200) / 2 * -1 + 10,   
-        backgroundColor: '#007BFF',
-        height: 30,
-        width: 30,
-        borderRadius: 18,
-        borderWidth: 2,
-        borderColor: '#fff',
+    transactionsList: {
+        gap: 15,
+    },
+    transactionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+        padding: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    transactionIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(76, 175, 80, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-        elevation: 5,
+        marginRight: 15,
     },
-    
-    editIconText: {
-        fontSize: 10,
-        color: '#fff',
-        fontWeight: 'bold',
-    }
-,    
-
+    transactionInfo: {
+        flex: 1,
+    },
+    transactionTitle: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#333',
+        marginBottom: 4,
+    },
+    transactionDate: {
+        fontSize: 14,
+        color: '#666',
+    },
+    transactionAmount: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#0A2784FF',
+    },
+    notificationsList: {
+        gap: 15,
+    },
+    notificationItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+        padding: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    notificationIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    notificationContent: {
+        flex: 1,
+    },
+    notificationText: {
+        fontSize: 16,
+        color: '#333',
+        marginBottom: 4,
+    },
+    notificationTime: {
+        fontSize: 14,
+        color: '#666',
+    },
+    settingsList: {
+        gap: 20,
+    },
     settingItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#f8f9fa',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 10,
+        paddingVertical: 10,
+    },
+    settingInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     settingLabel: {
         fontSize: 16,
-        color: '#2d3436',
+        color: '#333',
+        marginLeft: 15,
+    },
+    settingValue: {
+        fontSize: 16,
+        color: '#666',
     },
     toggle: {
         width: 50,
         height: 28,
         borderRadius: 30,
-        backgroundColor: '#dcdde1',
+        backgroundColor: '#ddd',
+        justifyContent: 'center',
+        paddingHorizontal: 2,
     },
     toggleActive: {
-        backgroundColor: '#2ecc71',
+        backgroundColor: '#4CAF50',
     },
-    profileImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        alignSelf: 'center',
-        marginBottom: 20,
+    toggleCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+    },
+    logoutButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+        padding: 15,
+        borderRadius: 12,
+        marginHorizontal: 15,
+        marginBottom: 110,
+        marginTop: 10,
+        borderWidth: 1,
+        borderColor: '#FF3B30',
+    },
+    logoutText: {
+        color: '#FF3B30',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginLeft: 10,
+    },
+    loadingIndicator: {
+        marginVertical: 20,
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    emptyStateText: {
+        fontSize: 16,
+        color: '#666',
+        marginTop: 10,
+    },
+    addButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#0A2784FF',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    addButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginLeft: 5,
+    },
+    postsList: {
+        gap: 15,
+    },
+    postItem: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 15,
+        borderWidth: 1,
+        borderColor: '#eee',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+    },
+    postHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+        paddingBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    postNumber: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#0A2784FF',
+    },
+    postDetails: {
+        gap: 10,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    detailText: {
+        fontSize: 14,
+        color: '#333',
+        marginLeft: 10,
+    },
+    postDescription: {
+        marginTop: 15,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
+    },
+    descriptionLabel: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#0A2784FF',
+        marginBottom: 5,
+    },
+    descriptionText: {
+        fontSize: 14,
+        color: '#666',
+        lineHeight: 20,
     },
 });
-;
 
 export default Profile;

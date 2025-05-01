@@ -58,7 +58,7 @@ const Header = () => {
 const styles = StyleSheet.create({
   container: {
     height: 400,
-    overflow: 'hidden', 
+    overflow: 'hidden',
   },
   slide: {
     width: width,
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
-    opacity: 0.9, 
+    opacity: 0.9,
   },
   overlay: {
     position: 'absolute',
@@ -79,13 +79,13 @@ const styles = StyleSheet.create({
     left: 0,
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 10, 
-    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)', 
+    borderRadius: 10,
+    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
   },
   title: {
     color: 'white',
@@ -93,27 +93,27 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 10,
-    lineHeight: 32, 
+    lineHeight: 32,
   },
   subtitle: {
     color: 'white',
     fontSize: 20,
     textAlign: 'center',
     marginBottom: 20,
-    lineHeight: 24, 
+    lineHeight: 24,
   },
   button: {
     backgroundColor: '#007bff',
     paddingVertical: 12,
     paddingHorizontal: 30,
-    borderRadius: 8, 
-    elevation: 5, 
+    borderRadius: 8,
+    elevation: 5,
   },
   buttonText: {
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
-    textTransform: 'uppercase', 
+    textTransform: 'uppercase',
   },
 });
 

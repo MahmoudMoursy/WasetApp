@@ -1,4 +1,4 @@
-import { doc, setDoc, updateDoc, arrayUnion, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, updateDoc, arrayUnion, onSnapshot, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./story/firebaseconfig";
 
 export const createPost = async (postId, postData) => {
@@ -6,7 +6,7 @@ export const createPost = async (postId, postData) => {
         const postRef = doc(db, "post", postId);
         await setDoc(postRef, {
             ...postData,
-            comments: [], 
+            comments: [],
         });
 
         console.log("✅ تم إنشاء المنشور بنجاح!");
@@ -20,7 +20,7 @@ export const addComment = async (postId, commentObj) => {
     try {
         const postRef = doc(db, "post", postId);
         await updateDoc(postRef, {
-            comments: arrayUnion(commentObj), 
+            comments: arrayUnion(commentObj),
         });
 
         console.log("✅ تم إضافة التعليق بنجاح!");
@@ -33,11 +33,11 @@ export const addComment = async (postId, commentObj) => {
 export const getComments = (postId, setComments) => {
     if (!postId) {
         console.error("Invalid postId:", postId);
-        return () => {}; 
+        return () => { };
     }
 
     const unsubscribe = firestore
-        .collection("posts") 
+        .collection("posts")
         .doc(postId)
         .collection("comments")
         .orderBy("timestamp", "desc")
@@ -50,4 +50,23 @@ export const getComments = (postId, setComments) => {
         });
 
     return unsubscribe;
+};
+
+export const createNotification = async (userId, title, message, type = 'general') => {
+    try {
+        const notificationData = {
+            userId,
+            title,
+            message,
+            type,
+            read: false,
+            timestamp: serverTimestamp()
+        };
+
+        const notificationsRef = collection(db, "notifications");
+        await addDoc(notificationsRef, notificationData);
+        console.log("✅ تم إنشاء الإشعار بنجاح!");
+    } catch (error) {
+        console.error("⚠️ خطأ في إنشاء الإشعار:", error);
+    }
 };
